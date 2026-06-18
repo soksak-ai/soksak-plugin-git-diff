@@ -23,6 +23,20 @@
         ],
         "defaultPlacement": "sidebar-right"
       }
+    ],
+    "nodes": [
+      {
+        "id": "file",
+        "description": "변경 파일 행(클릭=diff 보기). data-node=\"file/<경로>\""
+      },
+      {
+        "id": "staged",
+        "description": "staged 체크박스(토글=working↔index diff)"
+      },
+      {
+        "id": "refresh",
+        "description": "새로고침 버튼(목록·diff 재로드)"
+      }
     ]
   }
 }

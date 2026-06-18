@@ -19,6 +19,14 @@ function h(tag, style, text) {
   return el;
 }
 
+// 파일 경로 → data-node 안정키 세그먼트. 경로 자체가 안정 식별자(카운터 금지)지만
+// node path 세그먼트 형식(^[a-z0-9][a-z0-9.-]*$)을 지켜야 하므로 소문자화 + 허용
+// 외 문자(슬래시·공백·언더스코어 등)를 "-" 로 치환, 선두를 [a-z0-9] 로 보정한다.
+function nodeKey(path) {
+  const k = path.toLowerCase().replace(/[^a-z0-9.-]+/g, "-");
+  return /^[a-z0-9]/.test(k) ? k : "f-" + k;
+}
+
 // diff 한 줄의 착색 규칙
 function lineStyle(line) {
   if (line.startsWith("@@")) return "color:var(--acc);opacity:.7";
@@ -69,6 +77,7 @@ export default {
             '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>' +
             '<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>';
           refreshBtn.title = "새로고침";
+          refreshBtn.dataset.node = "refresh"; // 구조적 주소 노출(클릭=재로드)
           const stagedLabel = h(
             "label",
             "display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--fg2);user-select:none",
@@ -76,6 +85,7 @@ export default {
           const stagedBox = document.createElement("input");
           stagedBox.type = "checkbox";
           stagedBox.style.cssText = "accent-color:var(--acc);margin:0";
+          stagedBox.dataset.node = "staged"; // 구조적 주소 노출(토글=working↔index)
           stagedLabel.append(stagedBox, document.createTextNode("staged"));
           bar.append(stagedLabel, refreshBtn);
 
@@ -164,6 +174,8 @@ export default {
                   "display:flex;align-items:center;gap:7px;padding:3px 12px;cursor:pointer",
                 );
                 row.title = ent.path;
+                // 동적 목록 — 안정키=파일 경로(카운터 인덱스 금지). 클릭=diff 보기.
+                row.dataset.node = `file/${nodeKey(ent.path)}`;
                 const badge = h(
                   "span",
                   `flex:0 0 12px;text-align:center;font-weight:600;color:${st.color}`,
