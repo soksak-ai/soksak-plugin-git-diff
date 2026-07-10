@@ -46,7 +46,13 @@
           "sidebar-right",
           "content"
         ],
-        "defaultPlacement": "sidebar-right"
+        "defaultPlacement": "sidebar-right",
+        "status": [
+          "loading",
+          "clean",
+          "changed",
+          "error"
+        ]
       }
     ],
     "nodes": [
