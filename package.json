@@ -5,6 +5,7 @@
   "type": "module",
   "description": "soksak git changes plugin — changed file list and unified diff, as a view and as headless commands",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "prepublishOnly": "npm test && npx --yes soksak-plugin-doctor ."
   }
 }
