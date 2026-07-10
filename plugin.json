@@ -18,6 +18,22 @@
     "terminal"
   ],
   "contributes": {
+    "commands": [
+      {
+        "name": "files",
+        "title": {
+          "en": "Lists changed files",
+          "ko": "변경 파일 목록을 조회합니다"
+        }
+      },
+      {
+        "name": "read",
+        "title": {
+          "en": "Reads the unified diff",
+          "ko": "unified diff 를 조회합니다"
+        }
+      }
+    ],
     "views": [
       {
         "id": "view",

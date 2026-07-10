@@ -11,13 +11,37 @@
 - 파일 클릭 → unified diff. `+` 줄 초록(`var(--ok)`), `-` 줄 빨강, `@@` 줄 강조색.
 - `⟳` 버튼으로 새로고침, `staged` 토글로 index diff 전환. 변경이 없으면 "변경 없음".
 - 실패(비 git 디렉토리, 루트 없음 등)는 뷰 안에 에러 텍스트로 표시됩니다.
+- 뷰가 보여주는 데이터를 헤드리스 명령으로도 노출합니다: `files`(변경 파일 목록) / `read`(diff 본문).
+
+## 명령
+
+뷰가 보여주는 모든 데이터는 뷰 없이도 읽을 수 있습니다(에이전트/CLI/MCP 표면).
+
+| 명령 | 파라미터 | 반환 |
+|------|--------|------|
+| `plugin.soksak-plugin-git-diff.files` | `path?`(저장소 경로, 생략 시 활성 프로젝트 루트) | `{ files: [{path,status}] }` — 뷰의 파일 목록과 동일 소스(`explorer.git`) |
+| `plugin.soksak-plugin-git-diff.read` | `path?`, `file?`(저장소 상대 경로, 생략 시 저장소 전체), `staged?`(기본 false) | `{ diff, file?, staged }` — 뷰의 diff 영역과 동일 소스(`app.git.diff`) |
+
+```sh
+sok plugin.soksak-plugin-git-diff.files
+sok plugin.soksak-plugin-git-diff.read '{"file":"src/main.ts","staged":true}'
+```
+
+응답은 표준 봉투(`{ok, code, message, data}`)를 따르며, 실패는 소스의 에러 코드를
+그대로 전파합니다(예: `path` 도 활성 프로젝트도 없으면 `TARGET_NOT_FOUND`).
+
+## 테스트
+
+```sh
+npm test   # node --test — 매니페스트≡실등록 conformance, spec 필드, 봉투 동작
+```
 
 ## 권한 근거
 
 | 권한 | 사용처 |
 |------|--------|
 | `ui` | `registerView` 로 뷰 등록(사이드바/콘텐츠 배치) |
-| `commands` | `explorer.git` 명령 실행(변경 파일 목록 조회) |
+| `commands` | `explorer.git` 명령 실행(변경 파일 목록 조회) + `files`/`read` 명령 등록 |
 | `git:read` | `app.git.diff` 로 unified diff 조회(읽기 전용) |
 
 쓰기 권한 없음 — git 에 어떤 변경도 가하지 않습니다.

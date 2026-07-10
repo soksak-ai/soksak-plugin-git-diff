@@ -1,6 +1,8 @@
 // 깃 변경 — 변경 파일 목록 + 클릭 시 unified diff 뷰어 (soksak-plugin-spec v1).
-// 권한 근거: ui(뷰 등록) / commands(explorer.git 실행) / git:read(app.git.diff).
+// 권한 근거: ui(뷰 등록) / commands(explorer.git 실행 + files/read 명령 등록) / git:read(app.git.diff).
 // 외부 데이터(경로/디프 본문)는 전부 textContent 로만 삽입 — innerHTML 미사용.
+// 명령 표면(C2 투명성): 뷰가 보여주는 데이터(변경 파일 목록·diff 본문)를 헤드리스로도
+// 반환한다 — files(목록, explorer.git 과 동일 소스) / read(diff 본문, app.git.diff 동일 소스).
 
 // explorer.git 의 status 문자열 → 배지 글자/색 (fs.rs classify_git 와 동일 집합)
 const STATUS = {
@@ -40,6 +42,70 @@ export default {
     const app = ctx.app;
     // mount 별 정리 함수(이벤트 구독 등) — unmount 에서 실행.
     const cleanups = new Map();
+
+    // ── 명령 표면 — 뷰와 같은 소스(explorer.git / app.git.diff)의 헤드리스 등가 ──
+    const reg = (name, spec) => ctx.subscriptions.push(app.commands.register(name, spec));
+    const err = (code, message) => ({ ok: false, code, message });
+    // message 는 locale 해소(사람표면 {en,ko} — docs/I18N.md). ko 외 locale 은 en 폴백.
+    const msg = (en, ko) => ((typeof app.locale === "function" ? app.locale() : "ko") === "ko" ? ko : en);
+
+    reg("files", {
+      description:
+        "List changed files with per-file git status (modified/added/deleted/renamed/untracked) — the same data the view's file list shows. A directory that is not a git repository yields an empty list.",
+      triggers: { ko: "깃 변경 파일 목록 조회" },
+      params: {
+        path: { type: "string", description: "Repository path (defaults to active project root when omitted)" },
+      },
+      returns: "{ files: [{path,status}] }",
+      message: (d) =>
+        msg(`Found ${(d.files ?? []).length} changed file(s).`, `변경 파일 ${(d.files ?? []).length}개를 찾았습니다.`),
+      examples: [
+        "sok plugin.soksak-plugin-git-diff.files",
+        'sok plugin.soksak-plugin-git-diff.files \'{"path":"/Users/me/work"}\'',
+      ],
+      hint: (d) =>
+        d.ok && (d.files ?? []).length > 0
+          ? [{ cmd: "plugin.soksak-plugin-git-diff.read", why: "파일별 unified diff 본문을 볼 수 있습니다" }]
+          : [],
+      handler: async (p) => {
+        const out = await app.commands.execute(
+          "explorer.git",
+          typeof p.path === "string" && p.path ? { path: p.path } : {},
+        );
+        if (!out.ok) return err(out.code, out.message); // 소스 실패 봉투 전파(침묵 실패 금지)
+        return { ok: true, files: out.entries ?? [] };
+      },
+    });
+
+    reg("read", {
+      description:
+        "Return the raw unified diff — the whole repository by default, one file when file is given, the index instead of the working tree when staged=true. The same text the view's diff pane shows.",
+      triggers: { ko: "깃 diff 본문 변경 내용 조회 스테이지" },
+      params: {
+        path: { type: "string", description: "Repository path (defaults to active project root when omitted)" },
+        file: { type: "string", description: "Limit diff to this file (repository-relative path)" },
+        staged: { type: "boolean", description: "Diff the index (staged changes) instead of the working tree", default: false },
+      },
+      returns: "{ diff: string, file?, staged }",
+      message: (d) =>
+        String(d.diff ?? "").trim()
+          ? msg("Returned the unified diff.", "unified diff 를 반환했습니다.")
+          : msg("No changes.", "변경이 없습니다."),
+      examples: [
+        "sok plugin.soksak-plugin-git-diff.read",
+        'sok plugin.soksak-plugin-git-diff.read \'{"file":"src/main.ts","staged":true}\'',
+      ],
+      handler: async (p) => {
+        const file = typeof p.file === "string" && p.file ? p.file : undefined;
+        const staged = p.staged === true;
+        const diff = await app.git.diff({
+          ...(typeof p.path === "string" && p.path ? { path: p.path } : {}),
+          ...(file ? { file } : {}),
+          staged,
+        });
+        return { ok: true, diff, ...(file ? { file } : {}), staged };
+      },
+    });
 
     ctx.subscriptions.push(
       app.ui.registerView("view", {

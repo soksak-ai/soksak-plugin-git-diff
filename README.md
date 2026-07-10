@@ -12,13 +12,37 @@ index (`--cached`) diff.
 - Click a file → unified diff. `+` lines in green (`var(--ok)`), `-` lines in red, `@@` lines highlighted.
 - `⟳` button refreshes. `staged` toggle switches to index diff. Shows "No changes" when there are none.
 - Failures (non-git directory, no root, etc.) are displayed as error text inside the view (no silent failures).
+- Exposes the same data headlessly as commands: `files` (changed file list) and `read` (diff text).
+
+## Commands
+
+Everything the view shows is also readable without the view (agent/CLI/MCP surface).
+
+| Command | Params | Returns |
+|------|--------|------|
+| `plugin.soksak-plugin-git-diff.files` | `path?` (repository path; defaults to the active project root) | `{ files: [{path,status}] }` — same source as the view's file list (`explorer.git`) |
+| `plugin.soksak-plugin-git-diff.read` | `path?`, `file?` (repository-relative; omit for the whole repo), `staged?` (default false) | `{ diff, file?, staged }` — same source as the view's diff pane (`app.git.diff`) |
+
+```sh
+sok plugin.soksak-plugin-git-diff.files
+sok plugin.soksak-plugin-git-diff.read '{"file":"src/main.ts","staged":true}'
+```
+
+Responses follow the standard envelope (`{ok, code, message, data}`); failures propagate the
+source error code (e.g. `TARGET_NOT_FOUND` when neither `path` nor an active project exists).
+
+## Tests
+
+```sh
+npm test   # node --test — manifest≡registration conformance, spec fields, envelope behaviour
+```
 
 ## Permission Rationale
 
 | Permission | Usage |
 |------|--------|
 | `ui` | Register the view via `registerView` (sidebar/content placement) |
-| `commands` | Execute the `explorer.git` command (query changed file list) |
+| `commands` | Execute the `explorer.git` command (query changed file list) + register the `files`/`read` commands |
 | `git:read` | Retrieve unified diff via `app.git.diff` (read-only) |
 
 No write permission — makes no changes to git.
