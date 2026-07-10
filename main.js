@@ -37,6 +37,29 @@ function lineStyle(line) {
   return "color:var(--fg2)";
 }
 
+// 뷰 status 축(C2 투명성) — 파일 목록 로드 결과를 뷰 status{code,message} 로 사상한다.
+// outcome.kind: loading(조회 중) / clean(변경 0) / changed(변경 N) / error(조회 실패).
+// 이 뷰는 읽기 전용 diff 뷰어라 코어 blocking 어휘(dirty·busy·running)에 해당하는 상태가
+// 없다 — 전부 표시 전용 code 다(닫기 가드 미발동). message 는 locale 해소(msg 주입, 사람표면
+// {en,ko}). 미지 kind 는 null(억지 상태 금지). 순수함수 — 테스트 seam.
+export function deriveViewStatus(outcome, msg) {
+  switch (outcome.kind) {
+    case "loading":
+      return { code: "loading", message: msg("Loading…", "불러오는 중…") };
+    case "clean":
+      return { code: "clean", message: msg("No changes", "변경 없음") };
+    case "changed":
+      return {
+        code: "changed",
+        message: msg(`${outcome.count} changed`, `변경 ${outcome.count}개`),
+      };
+    case "error":
+      return { code: "error", message: outcome.message };
+    default:
+      return null;
+  }
+}
+
 export default {
   activate(ctx) {
     const app = ctx.app;
@@ -116,6 +139,10 @@ export default {
           let selected = null; // 선택된 파일 경로(root 상대)
           const rows = new Map(); // path → 행 요소(선택 하이라이트용)
 
+          // 뷰 status 축(C2) — 이 뷰의 실제 상태(로딩·변경유무·오류)를 호스트에 push 보고.
+          // 회수는 뷰 종속(코어가 뷰 소멸 시 status 삭제) — unmount 별도 정리 불필요.
+          const report = (outcome) => vctx.setStatus?.(deriveViewStatus(outcome, msg));
+
           container.replaceChildren();
           const wrap = h(
             "div",
@@ -177,10 +204,12 @@ export default {
           container.append(wrap);
 
           const showError = (e) => {
-            errEl.textContent = String(e && e.message ? e.message : e);
+            const text = String(e && e.message ? e.message : e);
+            errEl.textContent = text;
             errEl.style.display = "block";
             listEl.style.display = "none";
             diffEl.style.display = "none";
+            report({ kind: "error", message: text }); // 조회 오류 상태 보고
           };
           const clearError = () => {
             errEl.style.display = "none";
@@ -218,6 +247,7 @@ export default {
             clearError();
             listEl.replaceChildren();
             rows.clear();
+            report({ kind: "loading" }); // 조회 시작 — 정착 시 clean/changed/error 로 전이
             if (!root) {
               showError("프로젝트 루트 없음 — 폴더가 열린 프로젝트에서 사용하세요");
               return;
@@ -231,8 +261,10 @@ export default {
               const entries = out.entries || [];
               if (entries.length === 0) {
                 listEl.append(h("div", "padding:4px 12px;color:var(--fg3)", "변경 없음"));
+                report({ kind: "clean" }); // 변경 없음 상태 보고
                 return;
               }
+              report({ kind: "changed", count: entries.length }); // 변경 N개 상태 보고
               for (const ent of entries) {
                 const st = STATUS[ent.status] || { ch: "·", color: "var(--fg3)" };
                 const row = h(
