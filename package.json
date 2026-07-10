@@ -1,0 +1,10 @@
+{
+  "name": "soksak-plugin-git-diff",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "soksak git changes plugin — changed file list and unified diff, as a view and as headless commands",
+  "scripts": {
+    "test": "node --test"
+  }
+}
