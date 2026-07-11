@@ -1,10 +1,35 @@
 // 깃 변경 — 변경 파일 목록 + 클릭 시 unified diff 뷰어 (soksak-plugin-spec v1).
-// 권한 근거: ui(뷰 등록) / commands(explorer.git 실행 + files/read 명령 등록) / git:read(app.git.diff).
+// 권한 근거: ui(뷰 등록) / commands(git 라이브러리 플러그인 status/diff 커맨드 실행 + files/read
+// 명령 등록). git 실행은 코어에서 방출됐다(W8) — soksak-plugin-git-core 를 dependencies 로 선언한다.
 // 외부 데이터(경로/디프 본문)는 전부 textContent 로만 삽입 — innerHTML 미사용.
-// 명령 표면(C2 투명성): 뷰가 보여주는 데이터(변경 파일 목록·diff 본문)를 헤드리스로도
-// 반환한다 — files(목록, explorer.git 과 동일 소스) / read(diff 본문, app.git.diff 동일 소스).
+// 명령 표면(C2 투명성): 뷰가 보여주는 데이터(변경 파일 목록·diff 본문)를 헤드리스로도 반환한다 —
+// files(목록, git-core status 와 동일 소스) / read(diff 본문, git-core diff 동일 소스).
 
-// explorer.git 의 status 문자열 → 배지 글자/색 (fs.rs classify_git 와 동일 집합)
+const GITCORE = "plugin.soksak-plugin-git-core";
+
+// git 라이브러리 플러그인 status 위임 → 변경 파일 목록. 표준 봉투를 받아, 성공이면 data.entries 를
+// 뷰·명령이 쓰던 {path, status} 형태로 사상한다(untracked 디렉토리의 후행 슬래시는 트리 노드와
+// 맞추려 제거 — 레거시 코어 데코레이션과 동일). 실패면 봉투를 그대로 전파한다(침묵 실패 금지).
+async function coreFiles(app, path) {
+  const out = await app.commands.execute(`${GITCORE}.status`, path ? { path } : {});
+  if (!out.ok) return out;
+  const entries = (out.data?.entries ?? []).map((e) => ({
+    path: String(e.path).replace(/\/+$/, ""),
+    status: e.status,
+  }));
+  return { ok: true, entries };
+}
+
+// git 라이브러리 플러그인 diff 위임 → { ok, data:{ diff } } 봉투. 호출자가 봉투를 해석한다.
+function coreDiff(app, { path, file, staged }) {
+  return app.commands.execute(`${GITCORE}.diff`, {
+    ...(path ? { path } : {}),
+    ...(file ? { file } : {}),
+    staged: staged === true,
+  });
+}
+
+// git-core status 의 status 문자열 → 배지 글자/색 (classifyXY 와 동일 집합)
 const STATUS = {
   modified: { ch: "M", color: "var(--acc)" },
   added: { ch: "A", color: "var(--ok)" },
@@ -91,12 +116,9 @@ export default {
           ? [{ cmd: "plugin.soksak-plugin-git-diff.read", why: "파일별 unified diff 본문을 볼 수 있습니다" }]
           : [],
       handler: async (p) => {
-        const out = await app.commands.execute(
-          "explorer.git",
-          typeof p.path === "string" && p.path ? { path: p.path } : {},
-        );
+        const out = await coreFiles(app, typeof p.path === "string" && p.path ? p.path : undefined);
         if (!out.ok) return err(out.code, out.message); // 소스 실패 봉투 전파(침묵 실패 금지)
-        return { ok: true, files: out.entries ?? [] };
+        return { ok: true, files: out.entries };
       },
     });
 
@@ -121,12 +143,13 @@ export default {
       handler: async (p) => {
         const file = typeof p.file === "string" && p.file ? p.file : undefined;
         const staged = p.staged === true;
-        const diff = await app.git.diff({
-          ...(typeof p.path === "string" && p.path ? { path: p.path } : {}),
-          ...(file ? { file } : {}),
+        const out = await coreDiff(app, {
+          path: typeof p.path === "string" && p.path ? p.path : undefined,
+          file,
           staged,
         });
-        return { ok: true, diff, ...(file ? { file } : {}), staged };
+        if (!out.ok) return err(out.code, out.message); // 소스 실패 봉투 전파(침묵 실패 금지)
+        return { ok: true, diff: out.data?.diff ?? "", ...(file ? { file } : {}), staged };
       },
     });
 
@@ -226,23 +249,24 @@ export default {
           async function loadDiff() {
             diffEl.replaceChildren();
             if (!selected) return;
-            try {
-              const text = await app.git.diff({ path: root, file: selected, staged });
-              if (!text.trim()) {
-                diffEl.append(h("div", "color:var(--fg3)", "변경 없음"));
-                return;
-              }
-              const frag = document.createDocumentFragment();
-              for (const line of text.split("\n")) {
-                frag.append(h("div", lineStyle(line), line === "" ? " " : line));
-              }
-              diffEl.append(frag);
-            } catch (e) {
-              showError(e);
+            const out = await coreDiff(app, { path: root, file: selected, staged });
+            if (!out.ok) {
+              showError(`${out.code}: ${out.message}`);
+              return;
             }
+            const text = out.data?.diff ?? "";
+            if (!text.trim()) {
+              diffEl.append(h("div", "color:var(--fg3)", "변경 없음"));
+              return;
+            }
+            const frag = document.createDocumentFragment();
+            for (const line of text.split("\n")) {
+              frag.append(h("div", lineStyle(line), line === "" ? " " : line));
+            }
+            diffEl.append(frag);
           }
 
-          // 변경 파일 목록 — explorer.git 명령(파일트리 데코레이션과 동일 소스)
+          // 변경 파일 목록 — git-core status 명령(파일트리 데코레이션과 동일 소스)
           async function loadList() {
             clearError();
             listEl.replaceChildren();
@@ -253,7 +277,7 @@ export default {
               return;
             }
             try {
-              const out = await app.commands.execute("explorer.git", { path: root });
+              const out = await coreFiles(app, root);
               if (!out.ok) {
                 showError(`${out.code}: ${out.message}`);
                 return;
