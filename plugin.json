@@ -16,9 +16,6 @@
     "commands",
     "terminal"
   ],
-  "dependencies": {
-    "soksak-plugin-git-core": "^0.1.0"
-  },
   "contributes": {
     "commands": [
       {
@@ -71,5 +68,8 @@
         "description": "새로고침 버튼(목록·diff 재로드)"
       }
     ]
-  }
+  },
+  "consumes": [
+    "soksak-git-spec@1"
+  ]
 }

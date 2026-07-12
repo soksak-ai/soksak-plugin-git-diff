@@ -39,12 +39,9 @@ This plugin runs no git. It delegates `status` and `diff` to a plugin implementi
 No enabled implementer is a loud refusal (`NO_GIT_PROVIDER`), never an empty list — an empty list
 would read as "no changes", which is the worse lie.
 
-The manifest still declares `dependencies: { "soksak-plugin-git-core": "^0.1.0" }`. That is **not**
-this plugin's choice: the core's cross-plugin gate currently admits a call only when the target's
-plugin id appears in `dependencies`, so a contract-pinned consumer cannot reach its provider without
-it. **Remove that line when the core accepts a contract-pin declaration on the consumer side** — the
-code needs no change, because the code already names no implementer. Verify by disabling git-core,
-enabling a different implementer of the contract, and re-running `files`.
+The manifest declares `consumes: ["soksak-git-spec@1"]` — the consumer side of the contract pin.
+The host's call gate reads that declaration, so **no implementer's plugin id appears anywhere in
+this plugin**: not in its code, not in its manifest.
 
 ## Tests
 
