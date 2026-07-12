@@ -20,8 +20,8 @@ Everything the view shows is also readable without the view (agent/CLI/MCP surfa
 
 | Command | Params | Returns |
 |------|--------|------|
-| `plugin.soksak-plugin-git-diff.files` | `path?` (repository path; defaults to the active project root) | `{ files: [{path,status}] }` — same source as the view's file list (`explorer.git`) |
-| `plugin.soksak-plugin-git-diff.read` | `path?`, `file?` (repository-relative; omit for the whole repo), `staged?` (default false) | `{ diff, file?, staged }` — same source as the view's diff pane (`app.git.diff`) |
+| `plugin.soksak-plugin-git-diff.files` | `path?` (repository path; defaults to the active project root) | `{ files: [{path,status}] }` — the same source as the view's file list |
+| `plugin.soksak-plugin-git-diff.read` | `path?`, `file?` (repository-relative; omit for the whole repo), `staged?` (default false) | `{ diff, file?, staged }` — the same source as the view's diff pane |
 
 ```sh
 sok plugin.soksak-plugin-git-diff.files
@@ -29,7 +29,22 @@ sok plugin.soksak-plugin-git-diff.read '{"file":"src/main.ts","staged":true}'
 ```
 
 Responses follow the standard envelope (`{ok, code, message, data}`); failures propagate the
-source error code (e.g. `TARGET_NOT_FOUND` when neither `path` nor an active project exists).
+provider's error code (e.g. `NO_PATH` when neither `path` nor an active project exists).
+
+## The git provider
+
+This plugin runs no git. It delegates `status` and `diff` to a plugin implementing
+**`soksak-git-spec@1`**, and it finds that plugin **by contract, never by name**
+(`plugin.implementers` → the enabled implementer). Swap the implementer and nothing here changes.
+No enabled implementer is a loud refusal (`NO_GIT_PROVIDER`), never an empty list — an empty list
+would read as "no changes", which is the worse lie.
+
+The manifest still declares `dependencies: { "soksak-plugin-git-core": "^0.1.0" }`. That is **not**
+this plugin's choice: the core's cross-plugin gate currently admits a call only when the target's
+plugin id appears in `dependencies`, so a contract-pinned consumer cannot reach its provider without
+it. **Remove that line when the core accepts a contract-pin declaration on the consumer side** — the
+code needs no change, because the code already names no implementer. Verify by disabling git-core,
+enabling a different implementer of the contract, and re-running `files`.
 
 ## Tests
 
@@ -42,8 +57,8 @@ npm test   # node --test — manifest≡registration conformance, spec fields, e
 | Permission | Usage |
 |------|--------|
 | `ui` | Register the view via `registerView` (sidebar/content placement) |
-| `commands` | Execute the `explorer.git` command (query changed file list) + register the `files`/`read` commands |
-| `git:read` | Retrieve unified diff via `app.git.diff` (read-only) |
+| `commands` | Execute the provider's `status` / `diff` commands + register the `files` / `read` commands |
+| `terminal` | Open the repository's directory context for the view |
 
 No write permission — makes no changes to git.
 

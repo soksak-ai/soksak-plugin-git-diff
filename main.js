@@ -1,17 +1,42 @@
 // 깃 변경 — 변경 파일 목록 + 클릭 시 unified diff 뷰어 (soksak-plugin-spec v1).
-// 권한 근거: ui(뷰 등록) / commands(git 라이브러리 플러그인 status/diff 커맨드 실행 + files/read
-// 명령 등록). git 실행은 코어에서 방출됐다(W8) — soksak-plugin-git-core 를 dependencies 로 선언한다.
+// 권한 근거: ui(뷰 등록) / commands(git 제공자의 status·diff 실행 + files/read 명령 등록).
 // 외부 데이터(경로/디프 본문)는 전부 textContent 로만 삽입 — innerHTML 미사용.
-// 명령 표면(C2 투명성): 뷰가 보여주는 데이터(변경 파일 목록·diff 본문)를 헤드리스로도 반환한다 —
-// files(목록, git-core status 와 동일 소스) / read(diff 본문, git-core diff 동일 소스).
+// 명령 표면(C2 투명성): 뷰가 보여주는 데이터(변경 파일 목록·diff 본문)를 헤드리스로도 반환한다.
+//
+// git 은 직접 실행하지 않는다. soksak-git-spec@1 을 구현한 플러그인에게 위임하고, 그 플러그인은
+// **계약으로 찾는다 — 이름으로 찾지 않는다**(C3 L2 계약-핀). 구현체가 바뀌어도 이 파일은 그대로다.
+const GIT_CONTRACT = "soksak-git-spec@1";
 
-const GITCORE = "plugin.soksak-plugin-git-core";
+// 계약 구현체 해소 — 매번 다시 묻는다(구현체는 런타임에 켜지고 꺼진다. 캐시는 그 사실과 어긋난다).
+// 없으면 null → 호출자는 loud 하게 거부한다(조용한 빈 목록은 "변경 없음"으로 읽혀 더 나쁘다).
+async function gitProvider(app) {
+  const out = await app.commands.execute("plugin.implementers", { contract: GIT_CONTRACT });
+  if (!out?.ok) return null;
+  const found = (out.data?.implementers ?? []).find((i) => i.status === "enabled");
+  return found?.id ?? null;
+}
 
-// git 라이브러리 플러그인 status 위임 → 변경 파일 목록. 표준 봉투를 받아, 성공이면 data.entries 를
-// 뷰·명령이 쓰던 {path, status} 형태로 사상한다(untracked 디렉토리의 후행 슬래시는 트리 노드와
-// 맞추려 제거 — 레거시 코어 데코레이션과 동일). 실패면 봉투를 그대로 전파한다(침묵 실패 금지).
-async function coreFiles(app, path) {
-  const out = await app.commands.execute(`${GITCORE}.status`, path ? { path } : {});
+const noProvider = (msg) => ({
+  ok: false,
+  code: "NO_GIT_PROVIDER",
+  message: msg(
+    `no enabled plugin implements ${GIT_CONTRACT}`,
+    `${GIT_CONTRACT} 을 구현한 활성 플러그인이 없습니다`,
+  ),
+});
+
+// 제공자 명령 호출 — 계약이 정한 이름으로 부른다(status·diff 는 계약 표면이다).
+async function callGit(app, cmd, params, msg) {
+  const id = await gitProvider(app);
+  if (!id) return noProvider(msg);
+  return app.commands.execute(`plugin.${id}.${cmd}`, params);
+}
+
+// 계약 status 위임 → 변경 파일 목록. 성공이면 data.entries 를 뷰·명령이 쓰는 {path, status} 로
+// 사상한다(untracked 디렉토리의 후행 슬래시는 트리 노드와 맞추려 제거). 실패면 봉투를 그대로
+// 전파한다(침묵 실패 금지).
+async function gitFiles(app, path, msg) {
+  const out = await callGit(app, "status", path ? { path } : {}, msg);
   if (!out.ok) return out;
   const entries = (out.data?.entries ?? []).map((e) => ({
     path: String(e.path).replace(/\/+$/, ""),
@@ -20,16 +45,21 @@ async function coreFiles(app, path) {
   return { ok: true, entries };
 }
 
-// git 라이브러리 플러그인 diff 위임 → { ok, data:{ diff } } 봉투. 호출자가 봉투를 해석한다.
-function coreDiff(app, { path, file, staged }) {
-  return app.commands.execute(`${GITCORE}.diff`, {
-    ...(path ? { path } : {}),
-    ...(file ? { file } : {}),
-    staged: staged === true,
-  });
+// 계약 diff 위임 → { ok, data:{ diff } } 봉투. 호출자가 봉투를 해석한다.
+function gitDiff(app, { path, file, staged }, msg) {
+  return callGit(
+    app,
+    "diff",
+    {
+      ...(path ? { path } : {}),
+      ...(file ? { file } : {}),
+      staged: staged === true,
+    },
+    msg,
+  );
 }
 
-// git-core status 의 status 문자열 → 배지 글자/색 (classifyXY 와 동일 집합)
+// 계약 status 의 status 문자열 → 배지 글자/색
 const STATUS = {
   modified: { ch: "M", color: "var(--acc)" },
   added: { ch: "A", color: "var(--ok)" },
@@ -116,7 +146,7 @@ export default {
           ? [{ cmd: "plugin.soksak-plugin-git-diff.read", why: "파일별 unified diff 본문을 볼 수 있습니다" }]
           : [],
       handler: async (p) => {
-        const out = await coreFiles(app, typeof p.path === "string" && p.path ? p.path : undefined);
+        const out = await gitFiles(app, typeof p.path === "string" && p.path ? p.path : undefined, msg);
         if (!out.ok) return err(out.code, out.message); // 소스 실패 봉투 전파(침묵 실패 금지)
         return { ok: true, files: out.entries };
       },
@@ -143,11 +173,11 @@ export default {
       handler: async (p) => {
         const file = typeof p.file === "string" && p.file ? p.file : undefined;
         const staged = p.staged === true;
-        const out = await coreDiff(app, {
-          path: typeof p.path === "string" && p.path ? p.path : undefined,
-          file,
-          staged,
-        });
+        const out = await gitDiff(
+          app,
+          { path: typeof p.path === "string" && p.path ? p.path : undefined, file, staged },
+          msg,
+        );
         if (!out.ok) return err(out.code, out.message); // 소스 실패 봉투 전파(침묵 실패 금지)
         return { ok: true, diff: out.data?.diff ?? "", ...(file ? { file } : {}), staged };
       },
@@ -249,7 +279,7 @@ export default {
           async function loadDiff() {
             diffEl.replaceChildren();
             if (!selected) return;
-            const out = await coreDiff(app, { path: root, file: selected, staged });
+            const out = await gitDiff(app, { path: root, file: selected, staged }, msg);
             if (!out.ok) {
               showError(`${out.code}: ${out.message}`);
               return;
@@ -277,7 +307,7 @@ export default {
               return;
             }
             try {
-              const out = await coreFiles(app, root);
+              const out = await gitFiles(app, root, msg);
               if (!out.ok) {
                 showError(`${out.code}: ${out.message}`);
                 return;
