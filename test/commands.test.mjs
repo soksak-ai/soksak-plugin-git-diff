@@ -14,10 +14,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const manifest = JSON.parse(readFileSync(join(here, "..", "plugin.json"), "utf8"));
 const FULL = (name) => `plugin.${manifest.id}.${name}`;
 
-// 이 플러그인은 git 제공자를 **계약으로** 찾는다(soksak-git-spec@1) — 이름으로 찾지 않는다.
+// 이 플러그인은 git 제공자를 **계약으로** 찾는다(soksak-spec-plugin-git) — 이름으로 찾지 않는다.
 // 그래서 시험이 제공자의 id 를 정한다. 그리고 그 id 는 일부러 git-core 가 아니다: 코드 어딘가에
 // 구현체 이름이 박혀 있으면 아래 시험은 통과할 수 없다.
-const CONTRACT = "soksak-git-spec@1";
+const CONTRACT = "soksak-spec-plugin-git";
 const PROVIDER = "soksak-plugin-any-git";
 const ENABLED = [{ id: PROVIDER, version: "1.0.0", status: "enabled" }];
 

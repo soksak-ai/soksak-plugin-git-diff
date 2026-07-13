@@ -34,12 +34,12 @@ provider's error code (e.g. `NO_PATH` when neither `path` nor an active project 
 ## The git provider
 
 This plugin runs no git. It delegates `status` and `diff` to a plugin implementing
-**`soksak-git-spec@1`**, and it finds that plugin **by contract, never by name**
+**`soksak-spec-plugin-git`**, and it finds that plugin **by contract, never by name**
 (`plugin.implementers` → the enabled implementer). Swap the implementer and nothing here changes.
 No enabled implementer is a loud refusal (`NO_GIT_PROVIDER`), never an empty list — an empty list
 would read as "no changes", which is the worse lie.
 
-The manifest declares `consumes: ["soksak-git-spec@1"]` — the consumer side of the contract pin.
+The manifest declares `consumes: ["soksak-spec-plugin-git"]` — the consumer side of the contract pin.
 The host's call gate reads that declaration, so **no implementer's plugin id appears anywhere in
 this plugin**: not in its code, not in its manifest.
 

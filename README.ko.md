@@ -32,12 +32,12 @@ sok plugin.soksak-plugin-git-diff.read '{"file":"src/main.ts","staged":true}'
 
 ## git 제공자
 
-이 플러그인은 git 을 실행하지 않습니다. `status`·`diff` 를 **`soksak-git-spec@1`** 구현체에
+이 플러그인은 git 을 실행하지 않습니다. `status`·`diff` 를 **`soksak-spec-plugin-git`** 구현체에
 위임하며, 그 구현체를 **계약으로 찾습니다 — 이름으로 찾지 않습니다**(`plugin.implementers` →
 활성 구현체). 구현체가 바뀌어도 이 플러그인은 그대로입니다. 활성 구현체가 없으면 loud 하게
 거부합니다(`NO_GIT_PROVIDER`) — 빈 목록으로 답하지 않습니다(빈 목록은 "변경 없음"으로 읽힙니다).
 
-매니페스트는 `consumes: ["soksak-git-spec@1"]` 를 선언한다 — 계약-핀의 소비자 축이다. 호스트의 호출
+매니페스트는 `consumes: ["soksak-spec-plugin-git"]` 를 선언한다 — 계약-핀의 소비자 축이다. 호스트의 호출
 게이트가 그 선언을 읽으므로 **이 플러그인 어디에도 구현체의 플러그인 id 가 없다**: 코드에도, 매니페스트에도.
 
 ## 테스트

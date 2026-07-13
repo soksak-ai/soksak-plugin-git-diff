@@ -3,9 +3,9 @@
 // 외부 데이터(경로/디프 본문)는 전부 textContent 로만 삽입 — innerHTML 미사용.
 // 명령 표면(C2 투명성): 뷰가 보여주는 데이터(변경 파일 목록·diff 본문)를 헤드리스로도 반환한다.
 //
-// git 은 직접 실행하지 않는다. soksak-git-spec@1 을 구현한 플러그인에게 위임하고, 그 플러그인은
+// git 은 직접 실행하지 않는다. soksak-spec-plugin-git 을 구현한 플러그인에게 위임하고, 그 플러그인은
 // **계약으로 찾는다 — 이름으로 찾지 않는다**(C3 L2 계약-핀). 구현체가 바뀌어도 이 파일은 그대로다.
-const GIT_CONTRACT = "soksak-git-spec@1";
+const GIT_CONTRACT = "soksak-spec-plugin-git";
 
 // 계약 구현체 해소 — 매번 다시 묻는다(구현체는 런타임에 켜지고 꺼진다. 캐시는 그 사실과 어긋난다).
 // 없으면 null → 호출자는 loud 하게 거부한다(조용한 빈 목록은 "변경 없음"으로 읽혀 더 나쁘다).
