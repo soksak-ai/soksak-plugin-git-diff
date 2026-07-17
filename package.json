@@ -3,9 +3,15 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "description": "soksak git changes plugin — changed file list and unified diff, as a view and as headless commands",
+  "description": "soksak git changes plugin \u2014 changed file list and unified diff, as a view and as headless commands",
   "scripts": {
     "test": "node --test",
     "prepublishOnly": "npm test && npx --yes soksak-plugin-doctor ."
+  },
+  "soksakRelease": {
+    "kind": "plugin",
+    "id": "soksak-plugin-git-diff",
+    "repository": "https://github.com/soksak-ai/soksak-plugin-git-diff",
+    "manifest": "release.json"
   }
 }
