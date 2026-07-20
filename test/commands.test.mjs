@@ -27,7 +27,7 @@ function hostExec({ implementers = ENABLED, answers = {}, calls = [], discovery 
   return async (name, params) => {
     if (name === "plugin.implementers") {
       discovery.push(params);
-      return { ok: true, code: "OK", message: "", data: { contract: params?.contract, implementers } };
+      return { ok: true, code: "OK", message: "", data: { id: params?.id, implementers } };
     }
     calls.push([name, params]);
     const cmd = name.startsWith(`plugin.${PROVIDER}.`) ? name.slice(`plugin.${PROVIDER}.`.length) : null;
@@ -102,7 +102,7 @@ test("git 제공자를 계약으로 찾는다 — 구현체 이름은 코드에 
   const discovery = [];
   const spec = await specOf("files", { execute: hostExec({ calls, discovery }) });
   await spec.handler({ path: "/repo" });
-  assert.deepEqual(discovery, [{ contract: CONTRACT }], "plugin.implementers 를 계약 id 로 부르지 않음");
+  assert.deepEqual(discovery, [{ id: CONTRACT }], "plugin.implementers 를 계약 id 로 부르지 않음");
   assert.equal(calls[0][0], `plugin.${PROVIDER}.status`, "발견된 제공자가 아닌 곳으로 나갔다");
   for (const [name] of calls) {
     assert.ok(!name.includes("git-core"), `구현체 이름이 박혀 있다: ${name}`);

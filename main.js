@@ -10,7 +10,7 @@ const GIT_CONTRACT = "soksak-spec-plugin-git";
 // 계약 구현체 해소 — 매번 다시 묻는다(구현체는 런타임에 켜지고 꺼진다. 캐시는 그 사실과 어긋난다).
 // 없으면 null → 호출자는 loud 하게 거부한다(조용한 빈 목록은 "변경 없음"으로 읽혀 더 나쁘다).
 async function gitProvider(app) {
-  const out = await app.commands.execute("plugin.implementers", { contract: GIT_CONTRACT });
+  const out = await app.commands.execute("plugin.implementers", { id: GIT_CONTRACT });
   if (!out?.ok) return null;
   const found = (out.data?.implementers ?? []).find((i) => i.status === "enabled");
   return found?.id ?? null;
