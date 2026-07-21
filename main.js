@@ -92,6 +92,69 @@ function lineStyle(line) {
   return "color:var(--fg2)";
 }
 
+// ── 레일 브리지 — 사이드바 투영(rail)의 결부 채널 ─────────────────────────────
+// rail 뷰 마운트가 자기 컨테이너를 결부 콘텐츠 뷰 id(ctx.boundViewId)로 등록하면, 같은
+// id 의 콘텐츠 마운트(ctx.viewId — per-view 인스턴스라 1:1)가 목록 요소를 그 컨테이너로
+// 옮긴다. DOM 이동(appendChild)이라 행·리스너·스크롤 상태가 보존된다. 해제되면 인라인
+// 위치로 되돌린다. 레일 컨테이너가 등록되지 않는 호스트(구 코어)는 인라인 배치 그대로다.
+// 코어 로더는 entry 를 blob URL 로 import 하므로 상대 import 가 없다 — 브리지는 이 파일에 산다.
+// registerRailContainer/bindRailSlot 은 테스트 seam 으로 export 한다(DOM 없이 검증 가능).
+
+const railContainers = new Map(); // viewId → Map(slot → 컨테이너 요소)
+const railSubs = new Map(); // viewId → Set<() => void>
+
+function railNotify(viewId) {
+  for (const fn of railSubs.get(viewId) ?? []) fn();
+}
+
+// rail 뷰 마운트가 컨테이너를 등록한다. 반환 = 해제(언마운트 시 호출).
+export function registerRailContainer(viewId, slot, el) {
+  let entry = railContainers.get(viewId);
+  if (!entry) railContainers.set(viewId, (entry = new Map()));
+  entry.set(slot, el);
+  railNotify(viewId);
+  return () => {
+    const cur = railContainers.get(viewId);
+    if (!cur || cur.get(slot) !== el) return;
+    cur.delete(slot);
+    if (cur.size === 0) railContainers.delete(viewId);
+    railNotify(viewId);
+  };
+}
+
+// 콘텐츠 마운트가 요소 하나를 슬롯에 결속한다 — 등록된 컨테이너가 나타나면 adopt 후
+// 이동하고, 사라지면 restore 로 인라인 복귀한다. 반환 = 결속 해제(unmount 시 호출).
+export function bindRailSlot(viewId, slot, el, { adopt, restore }) {
+  if (!viewId) return () => {}; // 사이드바 배치·구 코어 — 결부 키 없음 = 인라인 유지
+  let placed = null;
+  const sync = () => {
+    const target = railContainers.get(viewId)?.get(slot) ?? null;
+    if (target === placed) return;
+    if (target) {
+      adopt(el);
+      target.appendChild(el);
+    } else {
+      restore(el);
+    }
+    placed = target;
+  };
+  let set = railSubs.get(viewId);
+  if (!set) railSubs.set(viewId, (set = new Set()));
+  set.add(sync);
+  sync();
+  return () => {
+    const s = railSubs.get(viewId);
+    if (s) {
+      s.delete(sync);
+      if (s.size === 0) railSubs.delete(viewId);
+    }
+    if (placed) {
+      restore(el);
+      placed = null;
+    }
+  };
+}
+
 // 뷰 status 축(C2 투명성) — 파일 목록 로드 결과를 뷰 status{code,message} 로 사상한다.
 // outcome.kind: loading(조회 중) / clean(변경 0) / changed(변경 N) / error(조회 실패).
 // 이 뷰는 읽기 전용 diff 뷰어라 코어 blocking 어휘(dirty·busy·running)에 해당하는 상태가
@@ -242,10 +305,16 @@ export default {
             "display:none;padding:8px 10px;color:#e5534b;font-size:11px;" +
               "white-space:pre-wrap;word-break:break-all;flex:0 0 auto",
           );
-          const listEl = h(
-            "div",
-            "flex:0 1 auto;max-height:45%;overflow:auto;padding:5px 0",
-          );
+          // 파일 목록 — 인라인(상단 목록)과 레일(전체 채움)의 두 자세. 이동 시 display 는
+          // 보존한다(에러 시 숨김 상태가 이동으로 풀리면 안 된다).
+          const LIST_INLINE = "flex:0 1 auto;max-height:45%;overflow:auto;padding:5px 0";
+          const LIST_RAIL = "flex:1 1 auto;min-height:0;overflow:auto;padding:5px 0";
+          const restyle = (el, css) => {
+            const display = el.style.display;
+            el.style.cssText = css;
+            el.style.display = display;
+          };
+          const listEl = h("div", LIST_INLINE);
           const diffEl = h(
             "div",
             "flex:1 1 auto;min-height:0;overflow:auto;padding:8px 10px;" +
@@ -255,6 +324,16 @@ export default {
 
           wrap.append(bar, errEl, listEl, diffEl);
           container.append(wrap);
+
+          // 레일 이관 — "files" rail 컨테이너가 등록되면 목록이 그리로 이동하고,
+          // 해제되면 diff 위의 인라인 자리로 복귀한다. 미등록(구 코어) = 인라인 유지.
+          const unbindRail = bindRailSlot(vctx.viewId ?? null, "files", listEl, {
+            adopt: (el) => restyle(el, LIST_RAIL),
+            restore: (el) => {
+              restyle(el, LIST_INLINE);
+              wrap.insertBefore(el, diffEl);
+            },
+          });
 
           const showError = (e) => {
             const text = String(e && e.message ? e.message : e);
@@ -379,12 +458,49 @@ export default {
           cleanups.set(container, () => {
             clearTimeout(reloadTimer);
             sub.dispose();
+            unbindRail();
           });
         },
 
         unmount(container) {
           cleanups.get(container)?.();
           cleanups.delete(container);
+          container.replaceChildren();
+        },
+      }),
+    );
+
+    // 방출된 파일 목록 rail 뷰 — 컨테이너만 소유한다. 내용(목록 요소)은 결부된 콘텐츠
+    // 마운트가 DOM 이동으로 옮겨 온다(상태 단일 소유 — 이중 진실 없음). 미결부면 정적 안내.
+    const railCleanups = new Map();
+    ctx.subscriptions.push(
+      app.ui.registerView("files", {
+        mount(container, vctx) {
+          railCleanups.get(container)?.();
+          container.replaceChildren();
+          const host = h(
+            "div",
+            "display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden;" +
+              "font-size:12px;color:var(--fg);background:var(--bg)",
+          );
+          container.append(host);
+          const bound = vctx?.boundViewId ?? null;
+          if (!bound) {
+            host.append(
+              h(
+                "div",
+                "padding:12px;color:var(--fg3);text-align:center;font-size:11px",
+                msg("No bound changes view", "결부된 깃 변경 뷰 없음"),
+              ),
+            );
+            railCleanups.set(container, () => {});
+            return;
+          }
+          railCleanups.set(container, registerRailContainer(bound, "files", host));
+        },
+        unmount(container) {
+          railCleanups.get(container)?.();
+          railCleanups.delete(container);
           container.replaceChildren();
         },
       }),

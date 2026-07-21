@@ -50,6 +50,25 @@
           "clean",
           "changed",
           "error"
+        ],
+        "sidebar": {
+          "left": [
+            {
+              "ref": "self.files",
+              "instance": "per-view"
+            }
+          ]
+        }
+      },
+      {
+        "id": "files",
+        "title": {
+          "en": "Changed Files",
+          "ko": "변경 파일"
+        },
+        "icon": "≣",
+        "placements": [
+          "rail"
         ]
       }
     ],
