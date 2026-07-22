@@ -3,12 +3,12 @@
   "id": "soksak-plugin-git-diff",
   "name": {
     "en": "Git Changes",
-    "ko": "\uae43 \ubcc0\uacbd"
+    "ko": "깃 변경"
   },
   "version": "0.0.1",
   "description": {
     "en": "Git view showing changed file list and unified diff. Supports staged (index) toggle.",
-    "ko": "\ubcc0\uacbd \ud30c\uc77c \ubaa9\ub85d\uacfc unified diff \ub97c \ubcf4\uc5ec\uc8fc\ub294 git \ubdf0. staged(index) \ud1a0\uae00 \uc9c0\uc6d0."
+    "ko": "변경 파일 목록과 unified diff 를 보여주는 git 뷰. staged(index) 토글 지원."
   },
   "permissions": [
     "ui",
@@ -21,14 +21,14 @@
         "name": "files",
         "title": {
           "en": "Lists changed files",
-          "ko": "\ubcc0\uacbd \ud30c\uc77c \ubaa9\ub85d\uc744 \uc870\ud68c\ud569\ub2c8\ub2e4"
+          "ko": "변경 파일 목록을 조회합니다"
         }
       },
       {
         "name": "read",
         "title": {
           "en": "Reads the unified diff",
-          "ko": "unified diff \ub97c \uc870\ud68c\ud569\ub2c8\ub2e4"
+          "ko": "unified diff 를 조회합니다"
         }
       }
     ],
@@ -37,14 +37,14 @@
         "id": "view",
         "title": {
           "en": "Git Changes",
-          "ko": "\uae43 \ubcc0\uacbd"
+          "ko": "깃 변경"
         },
-        "icon": "\u00b1",
+        "icon": "±",
         "placements": [
-          "sidebar-right",
+          "rail",
           "content"
         ],
-        "defaultPlacement": "sidebar-right",
+        "defaultPlacement": "rail",
         "status": [
           "loading",
           "clean",
@@ -75,15 +75,15 @@
     "nodes": [
       {
         "id": "file",
-        "description": "\ubcc0\uacbd \ud30c\uc77c \ud589(\ud074\ub9ad=diff \ubcf4\uae30). data-node=\"file/<\uacbd\ub85c>\""
+        "description": "변경 파일 행(클릭=diff 보기). data-node=\"file/<경로>\""
       },
       {
         "id": "staged",
-        "description": "staged \uccb4\ud06c\ubc15\uc2a4(\ud1a0\uae00=working\u2194index diff)"
+        "description": "staged 체크박스(토글=working↔index diff)"
       },
       {
         "id": "refresh",
-        "description": "\uc0c8\ub85c\uace0\uce68 \ubc84\ud2bc(\ubaa9\ub85d\u00b7diff \uc7ac\ub85c\ub4dc)"
+        "description": "새로고침 버튼(목록·diff 재로드)"
       }
     ]
   },
